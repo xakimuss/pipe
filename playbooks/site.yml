@@ -1,0 +1,7 @@
+---
+- name: Базовая настройка серверов
+  hosts: root
+  remote_user: pipe
+  become: true
+  roles:
+    - base

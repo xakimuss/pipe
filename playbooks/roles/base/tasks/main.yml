@@ -1,0 +1,112 @@
+---
+- name: Настройка sysctl параметров
+  copy:
+    dest: /etc/sysctl.d/99-popcache.conf
+    content: |
+      net.ipv4.ip_local_port_range = 1024 65535
+      net.core.somaxconn = 65535
+      net.ipv4.tcp_low_latency = 1
+      net.ipv4.tcp_fastopen = 3
+      net.ipv4.tcp_slow_start_after_idle = 0
+      net.ipv4.tcp_window_scaling = 1
+      net.ipv4.tcp_wmem = 4096 65536 16777216
+      net.ipv4.tcp_rmem = 4096 87380 16777216
+      net.core.wmem_max = 16777216
+      net.core.rmem_max = 16777216
+  notify: Reload sysctl
+
+- name: Установка limits
+  copy:
+    dest: /etc/security/limits.d/popcache.conf
+    content: |
+      * hard nofile 65535
+      * soft nofile 65535
+
+- name: Создание директорий
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: 0755
+  loop:
+    - /opt/popcache
+    - /opt/popcache/logs
+
+- name: Загрузка POP бинарника
+  get_url:
+    url: https://download.pipe.network/static/pop-v0.3.2-linux-x64.tar.gz
+    dest: /opt/popcache/pop.tar.gz
+    mode: '0644'
+
+- name: Распаковка бинарника
+  unarchive:
+    src: /opt/popcache/pop.tar.gz
+    dest: /opt/popcache
+    remote_src: yes
+
+- name: Копирование бинарника в /usr/local/bin
+  copy:
+    src: /opt/popcache/pop
+    dest: /usr/local/bin/pop
+    remote_src: yes
+    mode: '0755'
+
+- name: Создание конфигурационного файла config.json
+  template:
+    src: config.json.j2
+    dest: /opt/popcache/config.json
+    mode: '0644'
+
+- name: Установка systemd сервиса
+  copy:
+    src: popcache.service
+    dest: /etc/systemd/system/popcache.service
+    mode: '0644'
+
+- name: Перезапуск systemd
+  systemd:
+    daemon_reload: yes
+
+- name: Включение и запуск сервиса popcache
+  systemd:
+    name: popcache
+    enabled: yes
+    state: started
+
+- name: Установить конфигурацию logrotate для popcache
+  copy:
+    src: logrotate-popcache
+    dest: /etc/logrotate.d/popcache
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Принудительно выполнить logrotate (для теста)
+  command: logrotate -f /etc/logrotate.d/popcache
+  when: ansible_check_mode
+
+- name: Разрешить входящий HTTPS (443)
+  iptables:
+    chain: INPUT
+    protocol: tcp
+    destination_port: 443
+    jump: ACCEPT
+    state: present
+
+- name: Разрешить входящий HTTP (80)
+  iptables:
+    chain: INPUT
+    protocol: tcp
+    destination_port: 80
+    jump: ACCEPT
+    state: present
+
+- name: Установить iptables-persistent (для сохранения правил)
+  apt:
+    name: iptables-persistent
+    state: present
+    install_recommends: false
+
+- name: Сохранить текущие правила iptables
+  command: iptables-save > /etc/iptables/rules.v4

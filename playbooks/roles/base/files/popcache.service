@@ -1,0 +1,19 @@
+[Unit]
+Description=POP Cache Node
+After=network.target
+
+[Service]
+Type=simple
+User=pipe
+Group=pipe
+WorkingDirectory=/opt/popcache
+Environment=POP_CONFIG_PATH=/opt/popcache/config.json
+ExecStart=/usr/local/bin/pop
+Restart=always
+RestartSec=5
+LimitNOFILE=65535
+StandardOutput=append:/opt/popcache/logs/stdout.log
+StandardError=append:/opt/popcache/logs/stderr.log
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,8 @@
+/opt/popcache/logs/*.log {
+    daily
+    rotate 14
+    compress
+    missingok
+    notifempty
+    create 644 pipe pipe
+}
